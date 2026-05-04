@@ -1,0 +1,10 @@
+[phases.setup]
+aptPkgs = [
+    "libreoffice",
+    "libreoffice-writer",
+    "libreoffice-calc",
+    "libreoffice-impress",
+    "libreoffice-draw",
+    "libreoffice-math",
+    "default-jre"
+]
