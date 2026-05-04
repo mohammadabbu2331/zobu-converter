@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" 
+          content="width=device-width, 
+                   initial-scale=1.0">
+    <title>Zobu Converter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #080A12;
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 100vh;
+        }
+
+        /* Top bar */
+        .topbar {
+            background: #0A0A14;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            border-bottom: 2px solid #1A1A2E;
+        }
+
+        .logo {
+            font-size: 22px;
+            font-weight: bold;
+            background: linear-gradient(
+                135deg, #7B61FF, #FF4FA0
+            );
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .badge {
+            margin-left: 12px;
+            background: #1A1A2E;
+            border: 1px solid #2A2A4E;
+            color: #7B61FF;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+        }
+
+        /* Hero */
+        .hero {
+            text-align: center;
+            padding: 50px 24px 30px;
+        }
+
+        .hero h1 {
+            font-size: 38px;
+            font-weight: bold;
+            background: linear-gradient(
+                135deg, #7B61FF, #B05CFF, #FF4FA0
+            );
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 12px;
+            line-height: 1.2;
+        }
+
+        .hero p {
+            color: #AAAAAA;
+            font-size: 15px;
+            max-width: 480px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* Main container */
+        .container {
+            max-width: 580px;
+            margin: 0 auto;
+            padding: 0 20px 60px;
+        }
+
+        /* Upload zone */
+        .upload-zone {
+            border: 2px dashed #7B61FF;
+            border-radius: 20px;
+            padding: 48px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #0E1120;
+            margin-bottom: 16px;
+            position: relative;
+        }
+
+        .upload-zone:hover {
+            border-color: #FF4FA0;
+            background: #131726;
+            transform: translateY(-2px);
+        }
+
+        .upload-zone.dragover {
+            border-color: #FF4FA0;
+            background: #1A0E20;
+            box-shadow: 0 0 30px rgba(255,79,160,0.2);
+        }
+
+        .upload-icon {
+            font-size: 56px;
+            margin-bottom: 16px;
+            display: block;
+        }
+
+        .upload-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 8px;
+        }
+
+        .upload-hint {
+            font-size: 13px;
+            color: #666688;
+            margin-bottom: 16px;
+        }
+
+        .file-badges {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .file-badge {
+            background: #1A1A2E;
+            border: 1px solid #2A2A4E;
+            color: #7B61FF;
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        /* Selected file */
+        .selected-file {
+            display: none;
+            background: #0E1120;
+            border: 1px solid #2A2A4E;
+            border-radius: 14px;
+            padding: 14px 16px;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .selected-file.show {
+            display: flex;
+        }
+
+        .file-icon {
+            font-size: 32px;
+            flex-shrink: 0;
+        }
+
+        .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-name {
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-size {
+            font-size: 12px;
+            color: #557B61FF;
+            margin-top: 2px;
+        }
+
+        .remove-btn {
+            color: #FF4444;
+            cursor: pointer;
+            font-size: 20px;
+            flex-shrink: 0;
+            line-height: 1;
+        }
+
+        /* Convert button */
+        .convert-btn {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(
+                135deg, #7B61FF, #B05CFF, #FF4FA0
+            );
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-size: 17px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 16px;
+            letter-spacing: 0.5px;
+        }
+
+        .convert-btn:hover:not(:disabled) {
+            opacity: 0.9;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px
+                rgba(123, 97, 255, 0.4);
+        }
+
+        .convert-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Progress */
+        .progress-wrap {
+            display: none;
+            margin-bottom: 16px;
+        }
+
+        .progress-wrap.show {
+            display: block;
+        }
+
+        .progress-bg {
+            background: #1A1A2E;
+            border-radius: 10px;
+            height: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(
+                90deg, #7B61FF, #FF4FA0
+            );
+            border-radius: 10px;
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+
+        .progress-label {
+            text-align: center;
+            color: #7B61FF;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        /* Status */
+        .status {
+            display: none;
+            border-radius: 12px;
+            padding: 14px 18px;
+            font-size: 14px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .status.show { display: block; }
+
+        .status.success {
+            background: #0A2A0A;
+            border: 1px solid #2A5A2A;
+            color: #66BB6A;
+        }
+
+        .status.error {
+            background: #2A0A0A;
+            border: 1px solid #5A2A2A;
+            color: #EF5350;
+        }
+
+        /* Download button */
+        .download-btn {
+            display: none;
+            width: 100%;
+            padding: 16px;
+            background: transparent;
+            border: 2px solid #66BB6A;
+            color: #66BB6A;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            margin-bottom: 24px;
+            transition: all 0.3s ease;
+        }
+
+        .download-btn:hover {
+            background: #66BB6A;
+            color: #080A12;
+        }
+
+        .download-btn.show {
+            display: block;
+        }
+
+        /* Features */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .feature-card {
+            background: #0E1120;
+            border: 1px solid #1A1A2E;
+            border-radius: 14px;
+            padding: 18px 12px;
+            text-align: center;
+        }
+
+        .feature-emoji {
+            font-size: 28px;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .feature-title {
+            font-size: 13px;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 4px;
+        }
+
+        .feature-desc {
+            font-size: 11px;
+            color: #557766;
+            line-height: 1.4;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 24px;
+            color: #2A2A4A;
+            font-size: 12px;
+            border-top: 1px solid #1A1A2E;
+            margin-top: 20px;
+        }
+
+        /* Mobile */
+        @media (max-width: 480px) {
+            .hero h1 { font-size: 26px; }
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top bar -->
+    <div class="topbar">
+        <div class="logo">⚙ Zobu Converter</div>
+        <div class="badge">
+            Powered by Z Files
+        </div>
+    </div>
+
+    <!-- Hero -->
+    <div class="hero">
+        <h1>Professional PDF Converter</h1>
+        <p>
+            Convert Word Excel PowerPoint and
+            Images to PDF with professional quality.
+            Fast secure and completely free.
+        </p>
+    </div>
+
+    <!-- Main -->
+    <div class="container">
+
+        <!-- Upload zone -->
+        <div class="upload-zone"
+             id="uploadZone"
+             onclick="triggerUpload()">
+            <span class="upload-icon">📁</span>
+            <div class="upload-title">
+                Drop file here or tap to browse
+            </div>
+            <div class="upload-hint">
+                Maximum file size 50MB
+            </div>
+            <div class="file-badges">
+                <span class="file-badge">📄 Word</span>
+                <span class="file-badge">📊 Excel</span>
+                <span class="file-badge">📋 PPT</span>
+                <span class="file-badge">🖼 Image</span>
+            </div>
+        </div>
+
+        <!-- Hidden file input -->
+        <input type="file"
+               id="fileInput"
+               style="display:none"
+               accept=".doc,.docx,.xls,.xlsx,
+                       .ppt,.pptx,.jpg,.jpeg,
+                       .png,.bmp,.webp,.gif"
+               onchange="onFileSelected(this)">
+
+        <!-- Selected file display -->
+        <div class="selected-file"
+             id="selectedFile">
+            <div class="file-icon"
+                 id="fileIcon">📄</div>
+            <div class="file-info">
+                <div class="file-name"
+                     id="fileName"></div>
+                <div class="file-size"
+                     id="fileSize"></div>
+            </div>
+            <div class="remove-btn"
+                 onclick="removeFile()">✕</div>
+        </div>
+
+        <!-- Convert button -->
+        <button class="convert-btn"
+                id="convertBtn"
+                onclick="startConvert()"
+                disabled>
+            🔄 Convert to PDF
+        </button>
+
+        <!-- Progress -->
+        <div class="progress-wrap"
+             id="progressWrap">
+            <div class="progress-bg">
+                <div class="progress-fill"
+                     id="progressFill"></div>
+            </div>
+            <div class="progress-label"
+                 id="progressLabel">
+                Preparing...
+            </div>
+        </div>
+
+        <!-- Status message -->
+        <div class="status"
+             id="statusMsg"></div>
+
+        <!-- Download button -->
+        <a class="download-btn"
+           id="downloadBtn"
+           href="#"
+           download>
+            ⬇ Download PDF
+        </a>
+
+        <!-- Features -->
+        <div class="features">
+            <div class="feature-card">
+                <span class="feature-emoji">🔒</span>
+                <div class="feature-title">
+                    Secure
+                </div>
+                <div class="feature-desc">
+                    Files deleted after conversion
+                </div>
+            </div>
+            <div class="feature-card">
+                <span class="feature-emoji">⚡</span>
+                <div class="feature-title">
+                    Fast
+                </div>
+                <div class="feature-desc">
+                    Converts in 2 to 5 seconds
+                </div>
+            </div>
+            <div class="feature-card">
+                <span class="feature-emoji">✅</span>
+                <div class="feature-title">
+                    Professional
+                </div>
+                <div class="feature-desc">
+                    Adobe level quality output
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        Zobu Sentinel — Z Files Converter
+        &nbsp;•&nbsp;
+        Professional PDF Conversion
+    </div>
+
+    <script>
+        let currentFile = null;
+        let downloadURL = null;
+
+        // ── Trigger file picker ───────────────
+        function triggerUpload() {
+            document.getElementById('fileInput')
+                .click();
+        }
+
+        // ── File selected ─────────────────────
+        function onFileSelected(input) {
+            if (input.files.length > 0) {
+                handleFile(input.files[0]);
+            }
+        }
+
+        function handleFile(file) {
+            currentFile = file;
+
+            // Get icon based on file type
+            const ext = file.name
+                .split('.').pop().toLowerCase();
+            const iconMap = {
+                'doc':'📄','docx':'📄',
+                'xls':'📊','xlsx':'📊',
+                'ppt':'📋','pptx':'📋',
+                'jpg':'🖼','jpeg':'🖼',
+                'png':'🖼','bmp':'🖼',
+                'webp':'🖼','gif':'🖼'
+            };
+
+            document.getElementById('fileIcon')
+                .innerText = iconMap[ext] || '📎';
+            document.getElementById('fileName')
+                .innerText = file.name;
+            document.getElementById('fileSize')
+                .innerText = formatBytes(file.size);
+
+            document.getElementById('selectedFile')
+                .classList.add('show');
+            document.getElementById('convertBtn')
+                .disabled = false;
+
+            // Reset previous results
+            hideStatus();
+            document.getElementById('downloadBtn')
+                .classList.remove('show');
+            document.getElementById('progressWrap')
+                .classList.remove('show');
+        }
+
+        // ── Remove file ───────────────────────
+        function removeFile() {
+            currentFile = null;
+            document.getElementById('fileInput')
+                .value = '';
+            document.getElementById('selectedFile')
+                .classList.remove('show');
+            document.getElementById('convertBtn')
+                .disabled = true;
+            hideStatus();
+            document.getElementById('downloadBtn')
+                .classList.remove('show');
+        }
+
+        // ── Drag and drop ─────────────────────
+        const zone =
+            document.getElementById('uploadZone');
+
+        zone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            zone.classList.add('dragover');
+        });
+
+        zone.addEventListener('dragleave', () => {
+            zone.classList.remove('dragover');
+        });
+
+        zone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            zone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        // ── Start conversion ──────────────────
+        async function startConvert() {
+            if (!currentFile) return;
+
+            const btn =
+                document.getElementById('convertBtn');
+            const progressWrap =
+                document.getElementById('progressWrap');
+            const progressFill =
+                document.getElementById('progressFill');
+            const progressLabel =
+                document.getElementById('progressLabel');
+
+            // Set loading state
+            btn.disabled    = true;
+            btn.innerText   = '⏳ Converting...';
+            progressWrap.classList.add('show');
+            progressFill.style.width = '0%';
+            hideStatus();
+            document.getElementById('downloadBtn')
+                .classList.remove('show');
+
+            // Animate progress
+            let pct = 0;
+            const timer = setInterval(() => {
+                pct += Math.random() * 12;
+                if (pct > 88) pct = 88;
+                progressFill.style.width = pct + '%';
+                progressLabel.innerText =
+                    pct < 25 ? '📤 Uploading file...' :
+                    pct < 55 ? '⚙ Converting document...' :
+                    pct < 80 ? '📄 Creating PDF...' :
+                               '✨ Almost done...';
+            }, 350);
+
+            try {
+                const form = new FormData();
+                form.append('file', currentFile);
+
+                const response = await fetch('/convert', {
+                    method: 'POST',
+                    body: form
+                });
+
+                clearInterval(timer);
+
+                if (response.ok) {
+                    // Success
+                    progressFill.style.width = '100%';
+                    progressLabel.innerText =
+                        '✅ Done!';
+
+                    const blob = await response.blob();
+                    const url  = URL.createObjectURL(blob);
+                    const name = currentFile.name
+                        .replace(/\.[^/.]+$/, '')
+                        + '.pdf';
+
+                    const dlBtn =
+                        document.getElementById(
+                            'downloadBtn'
+                        );
+                    dlBtn.href     = url;
+                    dlBtn.download = name;
+                    dlBtn.innerText =
+                        '⬇ Download ' + name;
+                    dlBtn.classList.add('show');
+
+                    showStatus(
+                        '✅ Conversion successful! ' +
+                        'Your PDF is ready.',
+                        'success'
+                    );
+
+                    setTimeout(() => {
+                        progressWrap.classList
+                            .remove('show');
+                    }, 2000);
+
+                } else {
+                    clearInterval(timer);
+                    let errMsg = 'Conversion failed';
+                    try {
+                        const err = await response.json();
+                        errMsg = err.error || errMsg;
+                    } catch(e) {}
+                    showStatus('❌ ' + errMsg, 'error');
+                    progressWrap.classList.remove('show');
+                }
+
+            } catch (err) {
+                clearInterval(timer);
+                showStatus(
+                    '❌ Cannot connect to server. ' +
+                    'Check your internet connection.',
+                    'error'
+                );
+                progressWrap.classList.remove('show');
+            }
+
+            btn.disabled  = false;
+            btn.innerText = '🔄 Convert to PDF';
+        }
+
+        // ── Helpers ───────────────────────────
+        function showStatus(msg, type) {
+            const el =
+                document.getElementById('statusMsg');
+            el.innerText  = msg;
+            el.className  = 'status show ' + type;
+        }
+
+        function hideStatus() {
+            document.getElementById('statusMsg')
+                .className = 'status';
+        }
+
+        function formatBytes(bytes) {
+            if (bytes < 1024)
+                return bytes + ' B';
+            if (bytes < 1024 * 1024)
+                return (bytes/1024).toFixed(1) + ' KB';
+            return (bytes/(1024*1024)).toFixed(1) + ' MB';
+        }
+    </script>
+
+</body>
+</html>
