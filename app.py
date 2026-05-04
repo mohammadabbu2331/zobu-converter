@@ -11,11 +11,12 @@ import os
 import uuid
 import tempfile
 import shutil
+import io
+import sys
 
 app = Flask(__name__)
 CORS(app)
 
-# ── Allowed file types ────────────────────────
 ALLOWED_EXTENSIONS = {
     'doc', 'docx',
     'xls', 'xlsx',
@@ -25,19 +26,40 @@ ALLOWED_EXTENSIONS = {
     'webp', 'gif'
 }
 
-# ── Max file size 50MB ────────────────────────
 app.config['MAX_CONTENT_LENGTH'] = \
     50 * 1024 * 1024
 
 
-def allowed_file(filename):
-    return '.' in filename and \
-        filename.rsplit('.', 1)[1].lower() \
-        in ALLOWED_EXTENSIONS
+def install_libreoffice():
+    print("Attempting to install LibreOffice...")
+    try:
+        subprocess.run(
+            ['apt-get', 'update', '-y'],
+            capture_output=True,
+            timeout=120
+        )
+        result = subprocess.run(
+            [
+                'apt-get', 'install',
+                '-y', '--no-install-recommends',
+                'libreoffice'
+            ],
+            capture_output=True,
+            timeout=300
+        )
+        if result.returncode == 0:
+            print("LibreOffice installed successfully")
+            return True
+        else:
+            print(
+                f"Install failed: {result.stderr}"
+            )
+            return False
+    except Exception as e:
+        print(f"Install error: {e}")
+        return False
 
 
-# ── Find LibreOffice on any system ────────────
-# Works on Windows laptop AND Railway server
 def find_libreoffice():
     possible_paths = [
         'libreoffice',
@@ -50,7 +72,6 @@ def find_libreoffice():
         '/opt/libreoffice7.6/program/soffice',
         '/opt/libreoffice7.5/program/soffice',
         '/opt/libreoffice7.4/program/soffice',
-        '/opt/libreoffice7.3/program/soffice',
         '/snap/bin/libreoffice',
         r'C:\Program Files\LibreOffice\program\soffice.exe',
         r'C:\Program Files (x86)\LibreOffice\program\soffice.exe',
@@ -64,136 +85,155 @@ def find_libreoffice():
                 timeout=15
             )
             if result.returncode == 0:
-                print(
-                    f"Found LibreOffice at: {path}"
-                )
+                print(f"LibreOffice found: {path}")
                 return path
         except Exception:
             continue
 
-    # Last resort — search in common directories
+    # Search in directories
     search_dirs = [
-        '/usr', '/usr/local', '/opt',
-        '/snap', '/home'
+        '/usr/bin',
+        '/usr/local/bin',
+        '/opt',
+        '/snap/bin'
     ]
-    for search_dir in search_dirs:
-        for root, dirs, files in os.walk(
-            search_dir
-        ):
-            for f in files:
-                if f in ['soffice', 'libreoffice']:
-                    full_path = os.path.join(root, f)
+    for d in search_dirs:
+        if os.path.exists(d):
+            for f in os.listdir(d):
+                if 'libreoffice' in f.lower() or \
+                   f == 'soffice':
+                    full = os.path.join(d, f)
                     try:
-                        result = subprocess.run(
-                            [full_path, '--version'],
+                        r = subprocess.run(
+                            [full, '--version'],
                             capture_output=True,
                             timeout=10
                         )
-                        if result.returncode == 0:
+                        if r.returncode == 0:
                             print(
-                                f"Found at: {full_path}"
+                                f"Found: {full}"
                             )
-                            return full_path
+                            return full
                     except Exception:
                         continue
 
-    print("LibreOffice NOT found anywhere")
     return None
 
 
-# ── Home page ─────────────────────────────────
+# Try to find LibreOffice on startup
+# If not found try to install it
+LIBREOFFICE_PATH = find_libreoffice()
+if LIBREOFFICE_PATH is None:
+    print("LibreOffice not found. Installing...")
+    if install_libreoffice():
+        LIBREOFFICE_PATH = find_libreoffice()
+
+
+def allowed_file(filename):
+    return '.' in filename and \
+        filename.rsplit('.', 1)[1].lower() \
+        in ALLOWED_EXTENSIONS
+
+
 @app.route('/')
 def home():
     return render_template('index.html')
 
 
-# ── Health check ──────────────────────────────
 @app.route('/health')
 def health():
-    libreoffice = find_libreoffice()
+    lo = find_libreoffice()
     return jsonify({
         'status': 'ok',
-        'libreoffice_found': libreoffice is not None,
-        'libreoffice_path': libreoffice,
-        'python_version': os.sys.version,
+        'libreoffice_found': lo is not None,
+        'libreoffice_path': lo,
+        'python_version': sys.version,
         'message': 'Zobu Converter is running'
     })
 
 
-# ── Debug route ───────────────────────────────
 @app.route('/debug')
 def debug():
-    info = {
-        'PATH': os.environ.get('PATH', 'not set'),
-        'cwd': os.getcwd(),
-        'files': os.listdir('.'),
-    }
-
-    # Try to find libreoffice
-    libreoffice_path = find_libreoffice()
-    info['libreoffice'] = libreoffice_path
-
-    # Check common paths
-    check_paths = [
+    lo = find_libreoffice()
+    path_env = os.environ.get('PATH', '')
+    checks = {}
+    check_list = [
         '/usr/bin/libreoffice',
         '/usr/bin/soffice',
         '/usr/local/bin/libreoffice',
         '/opt/libreoffice/program/soffice',
     ]
-    path_exists = {}
-    for p in check_paths:
-        path_exists[p] = os.path.exists(p)
-    info['path_checks'] = path_exists
+    for p in check_list:
+        checks[p] = os.path.exists(p)
 
-    return jsonify(info)
+    usr_bin = []
+    if os.path.exists('/usr/bin'):
+        usr_bin = [
+            f for f in os.listdir('/usr/bin')
+            if 'libre' in f.lower() or
+               f == 'soffice'
+        ]
+
+    return jsonify({
+        'libreoffice': lo,
+        'PATH': path_env,
+        'path_checks': checks,
+        'usr_bin_matches': usr_bin,
+        'cwd': os.getcwd(),
+    })
 
 
-# ── Convert file to PDF ───────────────────────
+@app.route('/install-libreoffice')
+def trigger_install():
+    success = install_libreoffice()
+    lo = find_libreoffice()
+    return jsonify({
+        'install_success': success,
+        'libreoffice_found': lo is not None,
+        'libreoffice_path': lo
+    })
+
+
 @app.route('/convert', methods=['POST'])
 def convert():
 
-    # Check file in request
     if 'file' not in request.files:
         return jsonify({
-            'error': 'No file uploaded. '
-                     'Please select a file.'
+            'error': 'No file uploaded.'
         }), 400
 
     file = request.files['file']
 
-    # Check file selected
     if not file.filename:
         return jsonify({
-            'error': 'No file selected. '
-                     'Please choose a file.'
+            'error': 'No file selected.'
         }), 400
 
-    # Check file type allowed
     if not allowed_file(file.filename):
-        ext = file.filename.rsplit(
-            '.', 1
-        )[-1] if '.' in file.filename else 'unknown'
         return jsonify({
-            'error': f'File type .{ext} is not '
-                     f'supported. Use Word Excel '
-                     f'PowerPoint or Image files.'
+            'error': 'File type not supported. '
+                     'Use Word Excel PPT or Image.'
         }), 400
 
     # Find LibreOffice
     libreoffice_path = find_libreoffice()
+
+    # If not found try install then find again
+    if libreoffice_path is None:
+        print("LibreOffice not found. Trying install...")
+        install_libreoffice()
+        libreoffice_path = find_libreoffice()
+
     if libreoffice_path is None:
         return jsonify({
-            'error': 'LibreOffice is not installed '
-                     'on the server. Please contact '
-                     'administrator.'
+            'error': 'LibreOffice is not available. '
+                     'Please try again in 5 minutes '
+                     'while the server sets up.'
         }), 500
 
-    # Create temp directory for processing
     temp_dir = tempfile.mkdtemp()
-    print(f"Temp dir: {temp_dir}")
 
     try:
-        # Save uploaded file with unique name
         unique_id  = str(uuid.uuid4())
         ext        = file.filename.rsplit(
             '.', 1
@@ -202,19 +242,13 @@ def convert():
             temp_dir, f'{unique_id}.{ext}'
         )
         file.save(input_path)
-        print(f"Saved input: {input_path}")
+        print(f"File saved: {input_path}")
 
-        # Set up environment for LibreOffice
-        env = os.environ.copy()
-        env['HOME'] = temp_dir
+        env          = os.environ.copy()
+        env['HOME']  = temp_dir
         env['TMPDIR'] = temp_dir
 
-        # Run LibreOffice to convert to PDF
-        print(
-            f"Running: {libreoffice_path} "
-            f"--headless --convert-to pdf "
-            f"--outdir {temp_dir} {input_path}"
-        )
+        print(f"Converting with: {libreoffice_path}")
 
         result = subprocess.run(
             [
@@ -234,54 +268,50 @@ def convert():
 
         print(f"Return code: {result.returncode}")
         print(f"Stdout: {result.stdout}")
-        print(f"Stderr: {result.stderr}")
+        if result.stderr:
+            print(f"Stderr: {result.stderr}")
 
-        # Check if PDF was created
         pdf_path = os.path.join(
             temp_dir, f'{unique_id}.pdf'
         )
 
         if not os.path.exists(pdf_path):
-            # Check with alternative name
             for f_name in os.listdir(temp_dir):
                 if f_name.endswith('.pdf'):
                     pdf_path = os.path.join(
                         temp_dir, f_name
+                    )
+                    print(
+                        f"Found PDF: {pdf_path}"
                     )
                     break
 
         if not os.path.exists(pdf_path):
             return jsonify({
                 'error': 'Conversion failed. '
-                         'Could not create PDF. '
-                         f'Error: {result.stderr}'
+                         f'{result.stderr}'
             }), 500
 
-        print(f"PDF created: {pdf_path}")
-
-        # Get original name for download
         original_name = file.filename.rsplit(
             '.', 1
         )[0]
         pdf_filename = f'{original_name}.pdf'
 
-        # Read PDF into memory before sending
-        # so we can clean up temp files
         with open(pdf_path, 'rb') as pdf_file:
             pdf_data = pdf_file.read()
 
-        # Clean up temp files now
         try:
             shutil.rmtree(temp_dir)
-        except Exception as cleanup_err:
-            print(
-                f"Cleanup warning: {cleanup_err}"
-            )
+        except Exception:
+            pass
 
-        # Send PDF as download
-        import io
         pdf_io = io.BytesIO(pdf_data)
         pdf_io.seek(0)
+
+        print(
+            f"Sending PDF: {pdf_filename} "
+            f"({len(pdf_data)} bytes)"
+        )
 
         return send_file(
             pdf_io,
@@ -293,19 +323,16 @@ def convert():
     except subprocess.TimeoutExpired:
         return jsonify({
             'error': 'Conversion timed out. '
-                     'File may be too large '
-                     'or complex. Try a '
-                     'smaller file.'
+                     'Try a smaller file.'
         }), 500
 
     except Exception as e:
-        print(f"Conversion error: {str(e)}")
+        print(f"Error: {str(e)}")
         return jsonify({
-            'error': f'Conversion error: {str(e)}'
+            'error': f'Error: {str(e)}'
         }), 500
 
     finally:
-        # Make sure temp files are cleaned up
         try:
             if os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir)
@@ -313,12 +340,10 @@ def convert():
             pass
 
 
-# ── Error handlers ────────────────────────────
 @app.errorhandler(413)
 def too_large(e):
     return jsonify({
-        'error': 'File too large. '
-                 'Maximum size is 50MB.'
+        'error': 'File too large. Max 50MB.'
     }), 413
 
 
@@ -336,28 +361,20 @@ def server_error(e):
     }), 500
 
 
-# ── Start server ──────────────────────────────
 if __name__ == '__main__':
     print("=" * 50)
-    print("Starting Zobu Converter...")
+    print("Zobu Converter Starting...")
     print("=" * 50)
-
-    # Check LibreOffice on startup
-    lo_path = find_libreoffice()
-    if lo_path:
-        print(f"✅ LibreOffice found: {lo_path}")
+    lo = find_libreoffice()
+    if lo:
+        print(f"✅ LibreOffice: {lo}")
     else:
-        print("❌ LibreOffice NOT found!")
-        print(
-            "Install LibreOffice to enable "
-            "document conversion"
-        )
-
+        print("❌ LibreOffice not found")
+        print("Trying to install...")
+        install_libreoffice()
     print("=" * 50)
-    print("Open browser and go to:")
     print("http://localhost:5000")
     print("=" * 50)
-
     app.run(
         debug=True,
         port=5000,
